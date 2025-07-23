@@ -1,5 +1,7 @@
 # 🧰 医療データツールボックス
 
+<img width="2340" height="1326" alt="image" src="https://github.com/user-attachments/assets/71d9c7d1-bef5-49a0-88d2-b091350dcf47" />
+
 新調剤システム標準IF（NSIPS）対応のデータバリデーター & 多機能データ変換ツール
 
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen)](https://your-username.github.io/nsips-validator/)
