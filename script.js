@@ -587,9 +587,9 @@ function formatData() {
 // CSV整形機能
 function formatCSV(input) {
     // 改行文字を処理（NSIPSバリデーターと同様）
-    const processedInput = processLineBreaks(input);
+    const processedData = normalizeLineBreaks(input);
     
-    const lines = processedInput.split('\n').filter(line => line.trim());
+    const lines = processedData.lines.filter(line => line.trim());
     const formatted = lines.map(line => {
         const fields = line.split(',').map(field => field.trim());
         return fields.join(', ');
@@ -683,8 +683,8 @@ function csvToJson(csvData) {
 // NSIPS to JSON 変換
 function nsipsToJson(nsipsData) {
     // 改行文字を処理（NSIPSバリデーターと同様）
-    const processedData = processLineBreaks(nsipsData);
-    const lines = processedData.split('\n').filter(line => line.trim());
+    const processedData = normalizeLineBreaks(nsipsData);
+    const lines = processedData.lines.filter(line => line.trim());
     const result = {
         header: null,
         patient: null,
@@ -758,6 +758,7 @@ function nsipsToJson(nsipsData) {
         }
     });
 
+    return result;
 }
 
 // フォーマッター結果表示
