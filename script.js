@@ -591,8 +591,9 @@ function formatCSV(input) {
     
     const lines = processedData.lines.filter(line => line.trim());
     const formatted = lines.map(line => {
-        const fields = line.split(',').map(field => field.trim());
-        return fields.join(', ');
+        // 各フィールドをそのまま保持（空白フィールドも維持）
+        const fields = line.split(',');
+        return fields.join(',');
     });
     return formatted.join('\n');
 }
