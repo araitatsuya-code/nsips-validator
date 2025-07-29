@@ -682,7 +682,9 @@ function csvToJson(csvData) {
 
 // NSIPS to JSON 変換
 function nsipsToJson(nsipsData) {
-    const lines = nsipsData.trim().split('\n').filter(line => line.trim());
+    // 改行文字を処理（NSIPSバリデーターと同様）
+    const processedData = processLineBreaks(nsipsData);
+    const lines = processedData.split('\n').filter(line => line.trim());
     const result = {
         header: null,
         patient: null,
