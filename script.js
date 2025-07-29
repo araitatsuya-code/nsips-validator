@@ -586,7 +586,10 @@ function formatData() {
 
 // CSV整形機能
 function formatCSV(input) {
-    const lines = input.split('\n').filter(line => line.trim());
+    // 改行文字を処理（NSIPSバリデーターと同様）
+    const processedInput = processLineBreaks(input);
+    
+    const lines = processedInput.split('\n').filter(line => line.trim());
     const formatted = lines.map(line => {
         const fields = line.split(',').map(field => field.trim());
         return fields.join(', ');
