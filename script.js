@@ -177,7 +177,9 @@ function performValidation(lines) {
     };
 
     lines.forEach((line, index) => {
-        const fields = line.split(',');
+        // 先頭のスペースやタブを削除してから処理
+        const trimmedLine = line.trimStart();
+        const fields = trimmedLine.split(',');
         const recordType = fields[0];
 
         const recordResult = {
@@ -591,8 +593,10 @@ function formatCSV(input) {
     
     const lines = processedData.lines.filter(line => line.trim());
     const formatted = lines.map(line => {
+        // 先頭のスペースやタブを削除してから処理
+        const trimmedLine = line.trimStart();
         // 各フィールドをそのまま保持（空白フィールドも維持）
-        const fields = line.split(',');
+        const fields = trimmedLine.split(',');
         return fields.join(',');
     });
     return formatted.join('\n');
@@ -697,11 +701,14 @@ function nsipsToJson(nsipsData) {
     };
 
     lines.forEach(line => {
-        const fields = line.split(',');
+        // 先頭のスペースやタブを削除してから処理
+        const trimmedLine = line.trimStart();
+        const fields = trimmedLine.split(',');
         const recordType = fields[0];
 
         switch (recordType) {
             case 'VER010603':
+            case 'VER010602':
             case 'VER010401':
                 result.header = {
                     version: fields[0],
