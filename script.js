@@ -37,6 +37,30 @@ const NSIPS_SPEC = {
         { name: "患者漢字氏名", required: true },
         { name: "性別", required: true, pattern: /^[012]$/ },
         { name: "生年月日", required: true, pattern: /^\d{8}$/ }
+    ],
+
+    usageFields: [
+        { name: "識別子", required: true, pattern: /^3$/ },
+        { name: "Rp番号", required: true },
+        { name: "用法コード", required: false },
+        { name: "用法名称", required: true },
+        { name: "調剤数量", required: false },
+        { name: "力価補正値", required: false },
+        { name: "処方箋備考", required: false },
+        { name: "Rp備考", required: false },
+        { name: "Rp区分", required: false },
+        { name: "分割調剤等", required: false },  // 項番9
+        { name: "調剤日数", required: false },
+        { name: "服薬開始日", required: false },
+        { name: "調剤開始年月日", required: false },
+        { name: "内服回数", required: false },
+        { name: "一日服用回数（朝）", required: false },
+        { name: "一日服用回数（昼）", required: false },
+        { name: "一日服用回数（夕）", required: false },
+        { name: "一日服用回数（寝る前）", required: false },
+        { name: "一日服用回数（起床時）", required: false },
+        { name: "一日服用回数（その他）", required: false },
+        { name: "一包化", required: false, pattern: /^[01]$/ }  // 項番20
     ]
 };
 
@@ -332,7 +356,64 @@ function validateUsageRecord(fields, recordResult) {
             message: '必須項目が不足しています'
         });
         recordResult.status = 'error';
+        return;
     }
+
+    // 項番9（分割調剤等）のチェック
+    if (fields[9] && fields[9].trim() !== '') {
+        recordResult.issues.push({
+            type: 'info',
+            message: `項番9（分割調剤等）: ${fields[9]}`
+        });
+    }
+
+    // 項番20（一包化フラグ）のチェック
+    if (fields.length > 19 && fields[19]) {
+        const ippokaFlag = fields[19].trim();
+        if (ippokaFlag === '1') {
+            recordResult.issues.push({
+                type: 'info',
+                message: '項番20（一包化）: あり'
+            });
+        } else if (ippokaFlag === '0') {
+            recordResult.issues.push({
+                type: 'info',
+                message: '項番20（一包化）: なし'
+            });
+        } else if (ippokaFlag !== '') {
+            recordResult.issues.push({
+                type: 'warning',
+                message: `項番20（一包化）の値が不正: ${ippokaFlag}（0または1であるべき）`
+            });
+            if (recordResult.status === 'valid') {
+                recordResult.status = 'warning';
+            }
+        }
+    }
+
+    // 必須フィールドのバリデーション
+    NSIPS_SPEC.usageFields.forEach((spec, index) => {
+        if (index >= fields.length) return;
+        
+        const value = fields[index];
+        if (spec.required && (!value || value.trim() === '')) {
+            recordResult.issues.push({
+                type: 'error',
+                message: `必須項目が空白: ${spec.name}`
+            });
+            recordResult.status = 'error';
+        }
+        
+        if (spec.pattern && value && !spec.pattern.test(value)) {
+            recordResult.issues.push({
+                type: 'warning',
+                message: `フォーマット不正: ${spec.name} (${value})`
+            });
+            if (recordResult.status === 'valid') {
+                recordResult.status = 'warning';
+            }
+        }
+    });
 }
 
 function validateMedicineRecord(fields, recordResult) {
@@ -471,14 +552,15 @@ function generateLineBreakInfo(lineBreakInfo) {
 
 function generateFieldDetails(record) {
     let html = '';
-    const maxDisplay = 10; // 表示する最大フィールド数
+    const maxDisplay = 10; // デフォルトで表示する最大フィールド数
 
     record.fields.slice(0, maxDisplay).forEach((field, index) => {
         const fieldName = getFieldName(record.recordType, index);
         const isEmpty = !field || field.trim() === '';
+        const isImportant = isImportantField(record.recordType, index);
 
         html += `
-            <div class="field-info">
+            <div class="field-info ${isImportant ? 'important-field' : ''}">
                 <div class="field-label">${index + 1}:</div>
                 <div class="field-value">${fieldName}</div>
                 <div class="field-status">
@@ -489,12 +571,65 @@ function generateFieldDetails(record) {
     });
 
     if (record.fields.length > maxDisplay) {
-        html += `<div style="text-align: center; color: #718096; margin-top: 10px;">
-            他 ${record.fields.length - maxDisplay} フィールド...
-        </div>`;
+        const recordId = `record-${record.lineNumber}`;
+        html += `
+            <div style="text-align: center; color: #718096; margin-top: 10px;">
+                他 ${record.fields.length - maxDisplay} フィールド...
+                <button class="btn btn-secondary expand-fields" onclick="toggleFieldExpansion('${recordId}')" style="margin-left: 10px; padding: 5px 10px; font-size: 12px;">
+                    詳細を展開
+                </button>
+            </div>
+            <div id="${recordId}-expanded" class="expanded-fields" style="display: none; margin-top: 10px;">
+                ${generateAllFields(record, maxDisplay)}
+            </div>
+        `;
     }
 
     return html;
+}
+
+function generateAllFields(record, startIndex) {
+    let html = '';
+    
+    for (let index = startIndex; index < record.fields.length; index++) {
+        const field = record.fields[index];
+        const fieldName = getFieldName(record.recordType, index);
+        const isEmpty = !field || field.trim() === '';
+        const isImportant = isImportantField(record.recordType, index);
+
+        html += `
+            <div class="field-info ${isImportant ? 'important-field' : ''}">
+                <div class="field-label">${index + 1}:</div>
+                <div class="field-value">${fieldName}</div>
+                <div class="field-status">
+                    ${isEmpty ? '(空白)' : field.length > 30 ? field.substring(0, 30) + '...' : field}
+                </div>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+function isImportantField(recordType, index) {
+    // 用法部の重要フィールド（項番9と項番20）をハイライト
+    if (recordType === '3') {
+        return index === 8 || index === 19; // 項番9と項番20（0ベースなので-1）
+    }
+    return false;
+}
+
+function toggleFieldExpansion(recordId) {
+    const expandedDiv = document.getElementById(`${recordId}-expanded`);
+    const button = document.querySelector(`button[onclick="toggleFieldExpansion('${recordId}')"]`);
+    
+    if (expandedDiv.style.display === 'none') {
+        expandedDiv.style.display = 'block';
+        button.textContent = '詳細を縮小';
+    } else {
+        expandedDiv.style.display = 'none';
+        button.textContent = '詳細を展開';
+    }
 }
 
 function getFieldName(recordType, index) {
@@ -504,6 +639,9 @@ function getFieldName(recordType, index) {
     if (recordType === '1' && NSIPS_SPEC.patientFields[index]) {
         return NSIPS_SPEC.patientFields[index].name;
     }
+    if (recordType === '3' && NSIPS_SPEC.usageFields[index]) {
+        return NSIPS_SPEC.usageFields[index].name;
+    }
     return `項番${index + 1}`;
 }
 
@@ -511,7 +649,7 @@ function loadSampleData() {
     const sampleData = `VER010603,20250722153322,,PCCLIENT1,14,4,0842302,テスト薬局,2360042,神奈川県横浜市金沢区テスト町1-2-3,0457111111,
 1,,ﾔﾏﾀﾞ ﾀﾛｳ,山田　太郎,1,19800101,2360045,神奈川県横浜市金沢区サンプル町4-5-6,,,08011112222,,2,2,144105,20230801,７０,12345678,1,20,80,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,
 2,990235520035206,41,U,20250722,,,20250722,0,0,0,206,0800052,14,サンプル病院,2360037,横浜市金沢区テスト東1-2-3,0457333333,49,内科,,,794,ｻﾄｳ ｼﾞﾛｳ,佐藤　次郎,0,,,,,,,,,0,0,0,0,0,0,0,0
-3,1,*1000,１日１回　朝食後服用,,,,,2,1,70,0,,1,0,0,,,,,,
+3,1,*1000,１日１回　朝食後服用,,,,,2,1,70,0,,1,0,0,,,,,1
 4,1,1,1,3969010F2030,621951001,,ｻﾝﾌﾟﾙ50,サンプル錠５０ｍｇ,テスト成分錠５０ｍｇ,0,0,0,0,0,0,1,1,錠,0,0,0,0,1,82.1,,,,,,,,0,,,,,,,,
 5,560,0,0,0,448,0,0,0,0,0,0,560,0,0,0,0,0,0,0,0
 6,1,0,8,70,560,0,560,,,,,,,,,,,,,,,,,,,,`;
